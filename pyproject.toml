@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "MCP server for AMWA NMOS — query an NMOS registry (IS-04) and connect senders to receivers (IS-05)."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "2wcom" }]
 keywords = ["nmos", "mcp", "amwa", "is-04", "is-05", "st2110", "broadcast"]
 
