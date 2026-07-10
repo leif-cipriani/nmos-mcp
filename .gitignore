@@ -1,0 +1,19 @@
+# Local configuration & secrets — never commit (contains internal hostnames/creds)
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

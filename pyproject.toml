@@ -1,0 +1,40 @@
+[project]
+name = "nmos-mcp"
+version = "0.1.0"
+description = "MCP server for AMWA NMOS — query an NMOS registry (IS-04) and connect senders to receivers (IS-05)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "2wcom" }]
+keywords = ["nmos", "mcp", "amwa", "is-04", "is-05", "st2110", "broadcast"]
+
+dependencies = [
+    "mcp[cli]>=1.2.0",
+    "httpx>=0.27",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "python-dotenv>=1.0",
+    "zeroconf>=0.132",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "respx>=0.21",
+]
+
+[project.scripts]
+nmos-mcp = "nmos_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nmos_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src", "."]
