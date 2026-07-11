@@ -12,6 +12,16 @@ senders to receivers** to route media between devices (IS-05).
   OAuth2 bearer tokens.
 - Finds the registry from `NMOS_REGISTRY_URL`, or auto-discovers it over **mDNS**
   (`_nmos-query._tcp`).
+- **Security-first** — a permission policy is enforced inside the server so an AI
+  agent gets exactly the access it should have, and no more (see
+  [Permissions](#permissions-mcp-enforced-authorization)).
+
+> **Designed with security in mind.** This server exists to let an AI agent operate a
+> live broadcast network, where a wrong `connect` can take a service to air or off it.
+> Authorization is therefore enforced **in code, before any request leaves the
+> server** — never as a system-prompt guideline the model could ignore or be talked
+> out of. You grant an agent the minimum it needs (read-only, or writes limited to
+> specific devices/groups); everything else is denied by default.
 
 ---
 
@@ -159,9 +169,11 @@ so nodes exposing IS-05 **v1.0 or v1.1** both work.
 
 ## Permissions (MCP-enforced authorization)
 
-Write actions can route real media, so the server enforces an authorization policy
-**in code, before any HTTP call** — it is *not* a system-prompt guideline and cannot
-be talked around by the LLM.
+This is the server's core security mechanism: give an AI agent **just the access it
+should have**. Write actions can route real media, so the server enforces an
+authorization policy **in code, before any HTTP call** — it is *not* a system-prompt
+guideline and cannot be talked around by the LLM. Scope an agent down to read-only, or
+to writes on a single studio/rack, and everything else is denied by default.
 
 **Posture:**
 
