@@ -7,7 +7,7 @@ at all, in which case mDNS discovery is attempted).
 
 from __future__ import annotations
 
-from typing import Union
+from typing import Literal, Union
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     auth_client_id: str | None = Field(default=None)
     auth_client_secret: str | None = Field(default=None)
     auth_scope: str | None = Field(default="connection query")
+
+    # --- Permissions (MCP-enforced authorization) -----------------------------
+    # Path to a YAML/JSON policy file. In 'enforce' mode reads are always allowed
+    # but every write action needs an explicit allow rule; with no file, all writes
+    # are denied. 'open' disables all checks (dev/testing only).
+    permissions_file: str | None = Field(default=None)
+    permissions_mode: Literal["enforce", "open"] = Field(default="enforce")
 
     @field_validator("verify_tls", mode="before")
     @classmethod

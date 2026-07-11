@@ -46,6 +46,9 @@ NMOS_QUERY_VERSION=v1.3
 NMOS_CONNECTION_VERSION=v1.1
 NMOS_USE_HTTPS=false
 NMOS_VERIFY_TLS=true
+# Permissions (optional; see the Permissions section below):
+# NMOS_PERMISSIONS_FILE=permissions.yaml
+# NMOS_PERMISSIONS_MODE=enforce            # 'open' disables all checks (dev only)
 # IS-10 auth (optional, for secured deployments):
 # NMOS_AUTH_ENABLED=true
 # NMOS_AUTH_TOKEN_URL=https://auth.local/oauth2/token
@@ -137,6 +140,8 @@ Add to `claude_desktop_config.json`:
 `connect_sender_to_receiver`, `disconnect_receiver`, `enable_sender`,
 `disable_sender`, `bulk_connect`, `stage_receiver`, `stage_sender`.
 
+**Permissions:** `permissions_info` (read-only — shows the active policy).
+
 ### How a connection is made
 
 The Query API lives on the registry; the **Connection API (IS-05) lives on each
@@ -151,6 +156,50 @@ Node**. To wire a sender to a receiver the server:
 
 The connection endpoint version is taken from the device's advertised control href,
 so nodes exposing IS-05 **v1.0 or v1.1** both work.
+
+## Permissions (MCP-enforced authorization)
+
+Write actions can route real media, so the server enforces an authorization policy
+**in code, before any HTTP call** — it is *not* a system-prompt guideline and cannot
+be talked around by the LLM.
+
+**Posture:**
+
+- **Reads/queries are always allowed** (discovery is never blocked).
+- **Every write action must be explicitly granted** by a rule whose scope matches the
+  target. Actions: `connect`, `disconnect`, `enable`, `disable`, `stage` (`write` =
+  all five). Anything not granted is denied; explicit `deny` rules override allows.
+- `connect`/`disconnect`/`stage` on a receiver are checked against the **receiver**;
+  `enable`/`disable`/`stage` on a sender are checked against the **sender**.
+
+Enable it by pointing at a policy file:
+
+```ini
+NMOS_PERMISSIONS_FILE=permissions.yaml     # YAML or JSON
+NMOS_PERMISSIONS_MODE=enforce              # 'open' bypasses all checks (dev/testing)
+```
+
+> In `enforce` mode with **no** file, all write actions are denied. Copy
+> `permissions.example.yaml` to start. One policy applies per running server; give
+> someone a different role by registering a second MCP server with its own policy and
+> `NMOS_PERMISSIONS_FILE`.
+
+**Groups** of devices can be defined by NMOS `tags`, explicit device UUIDs, `label`
+regex, or by Node (a resource matches if any selector matches the resource *or its
+owning device*). Minimal example — allow routing only onto the AES67 receivers:
+
+```yaml
+groups:
+  aes67_rx:
+    labels: ["^AES67 receiver"]
+rules:
+  - actions: [connect, disconnect]
+    groups: [aes67_rx]
+```
+
+Ask the agent to call **`permissions_info`** to see exactly what the running server
+will allow. Every write decision is written to stderr as an `AUDIT ALLOW/DENY` line.
+See `permissions.example.yaml` for tags/UUID/node examples and `deny` rules.
 
 ## Test
 

@@ -1,0 +1,56 @@
+# NMOS MCP permission policy (example).
+#
+# Enforced INSIDE the MCP server, before any HTTP call — the LLM cannot bypass it.
+#
+# Posture:
+#   * Reads / queries are ALWAYS allowed (discovery is never blocked).
+#   * Every WRITE action must be granted by an allow rule below whose scope matches
+#     the target. Anything not granted is denied. Explicit `deny` rules win.
+#
+# Write actions (verbs):
+#   connect | disconnect | enable | disable | stage
+#   `write` is shorthand for all five.
+#   connect/disconnect/stage(receiver) are checked against the RECEIVER.
+#   enable/disable/stage(sender)        are checked against the SENDER.
+
+# --- Named groups of devices -------------------------------------------------
+# A resource is "in" a group if ANY selector matches the resource OR its owning
+# device (tags/labels), its device_id (devices), or its Node (nodes).
+groups:
+  studio_a:
+    tags:
+      location: ["Studio A"]        # matches resources/devices tagged location=Studio A
+    labels:
+      - "^StudioA-"                 # regex against resource/device/node label
+
+  aes67_receivers:
+    labels:
+      - "^AES67 receiver"
+
+  cameras:
+    devices:                        # explicit device UUIDs
+      - "00000000-0000-0000-0000-000000000000"
+
+  box_alpha:
+    nodes:                          # every device hosted on this Node (id or label)
+      - "easy-nmos-registry"
+
+# --- Allow rules (write only; reads are open) --------------------------------
+rules:
+  # Full write control within Studio A.
+  - actions: [write]
+    groups: [studio_a]
+
+  # Only routing (connect/disconnect) onto the AES67 receivers.
+  - actions: [connect, disconnect]
+    groups: [aes67_receivers]
+
+  # Enable/disable senders on box_alpha only.
+  - actions: [enable, disable]
+    groups: [box_alpha]
+
+# --- Deny rules (optional; override allows) ----------------------------------
+deny:
+  # Never permit raw IS-05 staging anywhere, even inside Studio A.
+  - actions: [stage]
+    groups: [all]                   # 'all' is the built-in group matching everything

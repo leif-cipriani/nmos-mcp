@@ -7,6 +7,7 @@ streamable-HTTP transport.
 from __future__ import annotations
 
 import argparse
+import logging
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -18,7 +19,10 @@ from .discovery import RegistryResolver
 from .errors import NmosError
 from .http import make_client
 from .models import RESOURCE_KINDS
+from .permissions import PolicyEngine, build_engine
 from .query import QueryClient
+
+logger = logging.getLogger("nmos_mcp")
 
 mcp = FastMCP(
     "nmos",
@@ -40,12 +44,17 @@ class _Services:
         self._client = None
         self._query: QueryClient | None = None
         self._connection: ConnectionClient | None = None
+        self._engine: PolicyEngine | None = None
 
     def _ensure(self) -> None:
         if self._client is None:
             self._client = make_client(self.settings, self.token_provider)
             self._query = QueryClient(self._client, self.resolver)
-            self._connection = ConnectionClient(self._client, self._query)
+            self._engine = build_engine(self.settings, self._query)
+            self._connection = ConnectionClient(self._client, self._query, self._engine)
+            logger.info(
+                "Permissions: mode=%s, policy=%s", self._engine.mode, self._engine.policy.source
+            )
 
     @property
     def query(self) -> QueryClient:
@@ -58,6 +67,12 @@ class _Services:
         self._ensure()
         assert self._connection is not None
         return self._connection
+
+    @property
+    def engine(self) -> PolicyEngine:
+        self._ensure()
+        assert self._engine is not None
+        return self._engine
 
 
 _services: _Services | None = None
@@ -81,6 +96,18 @@ def _kind_guard(kind: str) -> str:
 async def registry_info() -> dict[str, Any]:
     """Show the resolved NMOS registry (config or mDNS), reachability and resource counts."""
     return await _svc().query.registry_info()
+
+
+@mcp.tool()
+async def permissions_info() -> dict[str, Any]:
+    """Show the active MCP-enforced permission policy: mode, source file, groups and rules.
+
+    Reads are always allowed; write actions (connect/disconnect/enable/disable/stage)
+    are permitted only where a rule grants them. This reflects what the server will
+    actually enforce, regardless of anything said in the conversation.
+    """
+    engine = _svc().engine
+    return {"mode": engine.mode, "policy": engine.policy.summary()}
 
 
 @mcp.tool()

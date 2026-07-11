@@ -11,15 +11,29 @@ from typing import Any
 
 import httpx
 
+from . import permissions as perm
 from .errors import ConnectionManagementError, ResourceNotFoundError
 from .models import SDP_MIME_TYPE, ActivationRequest, ConnectResult
+from .permissions import PolicyEngine, ResourceRef
 from .query import QueryClient
 
 
 class ConnectionClient:
-    def __init__(self, client: httpx.AsyncClient, query: QueryClient) -> None:
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        query: QueryClient,
+        enforcer: PolicyEngine | None = None,
+    ) -> None:
         self._client = client
         self._query = query
+        self._enforcer = enforcer
+
+    async def _require(self, action: str, refs: list[ResourceRef]) -> None:
+        # Enforcement runs here (service layer) before any HTTP write, so no tool
+        # can accidentally skip it. None enforcer => unguarded (tests only).
+        if self._enforcer is not None:
+            await self._enforcer.require(action, refs)
 
     # --- Low-level IS-05 calls ------------------------------------------------
     async def _get_json(self, url: str) -> Any:
@@ -66,6 +80,7 @@ class ConnectionClient:
     # --- Orchestration --------------------------------------------------------
     async def connect(self, sender_id: str, receiver_id: str) -> ConnectResult:
         """Route ``sender_id`` -> ``receiver_id`` with an immediate activation."""
+        await self._require(perm.CONNECT, [ResourceRef("receivers", receiver_id)])
         receiver_base, _ = await self._query.connection_base_for("receivers", receiver_id)
         sender_base, _ = await self._query.connection_base_for("senders", sender_id)
         sdp = await self.get_transportfile(sender_id, base=sender_base)
@@ -82,6 +97,7 @@ class ConnectionClient:
         )
 
     async def disconnect(self, receiver_id: str) -> ConnectResult:
+        await self._require(perm.DISCONNECT, [ResourceRef("receivers", receiver_id)])
         receiver_base, _ = await self._query.connection_base_for("receivers", receiver_id)
         body = {
             "sender_id": None,
@@ -94,6 +110,7 @@ class ConnectionClient:
         )
 
     async def set_sender_enabled(self, sender_id: str, enabled: bool) -> dict[str, Any]:
+        await self._require(perm.ENABLE if enabled else perm.DISABLE, [ResourceRef("senders", sender_id)])
         sender_base, _ = await self._query.connection_base_for("senders", sender_id)
         body = {"master_enable": enabled, "activation": ActivationRequest().to_body()}
         await self._patch_staged(sender_base, "senders", sender_id, body)
@@ -106,6 +123,7 @@ class ConnectionClient:
 
     async def stage(self, kind: str, resource_id: str, patch: dict[str, Any]) -> dict[str, Any]:
         """Advanced: pass an arbitrary IS-05 staged PATCH body straight through."""
+        await self._require(perm.STAGE, [ResourceRef(kind, resource_id)])
         base, _ = await self._query.connection_base_for(kind, resource_id)
         return await self._patch_staged(base, kind, resource_id, patch)
 
@@ -114,6 +132,9 @@ class ConnectionClient:
 
         ``pairs`` is a list of ``{"sender_id": ..., "receiver_id": ...}``.
         """
+        # Atomic authorization: reject the whole batch if any receiver is not
+        # permitted, before issuing any HTTP request.
+        await self._require(perm.CONNECT, [ResourceRef("receivers", p["receiver_id"]) for p in pairs])
         # Group by the receiver's Connection API base (bulk is per-Node).
         grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for pair in pairs:

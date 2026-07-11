@@ -25,3 +25,7 @@ class ConnectionManagementError(NmosError):
 
 class AuthError(NmosError):
     """IS-10 token acquisition failed."""
+
+
+class PermissionDeniedError(NmosError):
+    """A write action was blocked by the MCP-enforced permission policy."""

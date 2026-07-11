@@ -25,18 +25,22 @@ CONN = f"{NODE}/x-nmos/connection/v1.1"
 SENDER_ID = "11111111-1111-1111-1111-111111111111"
 RECEIVER_ID = "22222222-2222-2222-2222-222222222222"
 DEVICE_ID = "33333333-3333-3333-3333-333333333333"
+NODE_ID = "44444444-4444-4444-4444-444444444444"
 
 SAMPLE_SDP = "v=0\r\no=- 0 0 IN IP4 192.168.1.1\r\ns=Cam1\r\nt=0 0\r\nm=video 5004 RTP/AVP 96\r\n"
 
+NODE = {"id": NODE_ID, "label": "box-alpha", "tags": {}}
 DEVICE = {
     "id": DEVICE_ID,
     "label": "Camera Device",
+    "node_id": NODE_ID,
+    "tags": {"location": ["Studio A"]},
     "controls": [
         {"type": "urn:x-nmos:control:sr-ctrl/v1.1", "href": f"{CONN}"},
     ],
 }
-SENDER = {"id": SENDER_ID, "label": "Cam 1 Sender", "device_id": DEVICE_ID}
-RECEIVER = {"id": RECEIVER_ID, "label": "Monitor Receiver", "device_id": DEVICE_ID}
+SENDER = {"id": SENDER_ID, "label": "Cam 1 Sender", "device_id": DEVICE_ID, "tags": {}}
+RECEIVER = {"id": RECEIVER_ID, "label": "AES67 receiver 1", "device_id": DEVICE_ID, "tags": {}}
 
 
 @pytest.fixture
@@ -65,6 +69,7 @@ def mock_nmos():
         router.get(f"{QUERY}/senders/{SENDER_ID}").mock(return_value=Response(200, json=SENDER))
         router.get(f"{QUERY}/receivers/{RECEIVER_ID}").mock(return_value=Response(200, json=RECEIVER))
         router.get(f"{QUERY}/devices/{DEVICE_ID}").mock(return_value=Response(200, json=DEVICE))
+        router.get(f"{QUERY}/nodes/{NODE_ID}").mock(return_value=Response(200, json=NODE))
 
         # IS-05 Connection API (Node)
         router.get(f"{CONN}/single/senders/{SENDER_ID}/transportfile").mock(
