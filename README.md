@@ -25,6 +25,26 @@ senders to receivers** to route media between devices (IS-05).
 
 ---
 
+## Two ways to run it
+
+| | **Option A — Local (Python venv)** | **Option B — Docker** |
+|---|---|---|
+| Setup | `pip install -e .` in a venv | `docker build -t nmos-mcp .` |
+| Best for | A laptop on the same network/VPN as the NMOS registry | Linux hosts / servers, or reproducible/isolated deployments |
+| Networking | Uses the host's DNS, routes and VPN directly — simplest | The container must be able to reach the registry **and** each Node's IS-05 endpoint (see the caveats in the Docker section) |
+| mDNS discovery | Works | Only with `--network host` on Linux |
+
+**Steps 1–4 below cover Option A.** The Docker path is in
+[Run with Docker](#run-with-docker-option-b). Both are configured with the same
+`NMOS_*` environment variables (see [Configure](#2-configure)).
+
+> On a corporate laptop where the NMOS network is reachable only over VPN, Option A is
+> usually the least friction — containers don't inherit the host's VPN DNS/routes by
+> default. Use Docker where the registry and nodes are directly reachable from
+> containers (e.g. a Linux box on the media network).
+
+---
+
 ## 1. Install
 
 ```bash
@@ -141,6 +161,64 @@ Add to `claude_desktop_config.json`:
 
 ---
 
+## Run with Docker (Option B)
+
+Build the image:
+
+```bash
+docker build -t nmos-mcp .
+```
+
+The image runs the **stdio** server by default and takes the same `NMOS_*`
+environment variables. `.env` and policy files are **not** baked in (see
+`.dockerignore`) — pass configuration at runtime.
+
+**Register the containerised server with Claude Code** (note `docker run -i` — the
+`-i` keeps stdin open for the MCP stdio protocol):
+
+```bash
+claude mcp add nmos -s user -- \
+  docker run -i --rm \
+    -e NMOS_REGISTRY_URL=http://registry.example.local \
+    -e NMOS_PERMISSIONS_MODE=open \
+    nmos-mcp
+```
+
+**Streamable-HTTP** instead of stdio (long-running, exposes a port):
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e NMOS_REGISTRY_URL=http://registry.example.local \
+  nmos-mcp --http
+```
+
+**A permission policy** is mounted at runtime rather than built in:
+
+```bash
+docker run -i --rm \
+  -e NMOS_REGISTRY_URL=http://registry.example.local \
+  -e NMOS_PERMISSIONS_FILE=/policy.yaml \
+  -v "$(pwd)/permissions.yaml:/policy.yaml:ro" \
+  nmos-mcp
+```
+
+### Networking — the important caveat
+
+The container must be able to reach **both** the registry **and every Node's IS-05
+endpoint** (often raw `192.168.x` addresses on the media LAN).
+
+- **Linux host:** add `--network host` so the container resolves names and routes
+  exactly like the host. This is also the only way mDNS auto-discovery works in a
+  container.
+- **Docker Desktop (macOS/Windows):** `--network host` maps to Docker's Linux VM, not
+  your machine, so corporate/VPN DNS names may not resolve and VPN-only subnets may be
+  unroutable. Work around it by pointing `NMOS_REGISTRY_URL` at an IP, adding
+  `--add-host registry.example.local:<ip>`, or `--dns <corporate-dns> --dns-search
+  <your.domain>`. mDNS discovery does not work here. **If the NMOS network is only
+  reachable over the host's VPN, prefer [Option A](#two-ways-to-run-it).**
+
+---
+
 ## Tools
 
 **IS-04 (query):** `registry_info`, `list_nodes`, `list_devices`, `list_senders`,
@@ -150,7 +228,36 @@ Add to `claude_desktop_config.json`:
 `connect_sender_to_receiver`, `disconnect_receiver`, `enable_sender`,
 `disable_sender`, `bulk_connect`, `stage_receiver`, `stage_sender`.
 
+**Visualisation:** `crosspoint_matrix` (read-only — router-style grid of all routes).
+
 **Permissions:** `permissions_info` (read-only — shows the active policy).
+
+### Crosspoint matrix
+
+A broadcast-router-style overview of every connection at once: **senders are columns,
+receivers are rows**, and a cell shows `X` where a receiver is subscribed to a sender
+(`o` = subscribed but inactive, `.` = not connected), with legends mapping the S1/R1
+codes to labels and IDs. It's built from the receivers' IS-04 `subscription` data —
+one registry query, no per-Node calls.
+
+Two ways to view it:
+
+- **From the terminal** — the `nmos-crosspoint` CLI (installed alongside `nmos-mcp`):
+
+  ```bash
+  nmos-crosspoint              # colourised when the output is a TTY
+  nmos-crosspoint --no-color
+  ```
+
+- **From an agent** — ask Claude to call the `crosspoint_matrix` tool
+  (*"show me the crosspoint matrix"*).
+
+```text
+                         │ S1  S2  S3  S4  S5  S6  S7  S8  S9  S10
+─────────────────────────┼────────────────────────────────────────
+R5 AES67 receiver 3      │ .   .   .   .   .   X   .   .   .   .
+R6 AES67 receiver 4      │ .   .   .   .   .   .   X   .   .   .
+```
 
 ### How a connection is made
 

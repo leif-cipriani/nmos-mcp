@@ -1,0 +1,19 @@
+# Keep secrets, local state and build cruft out of the image build context.
+.env
+.env.*
+!.env.example
+permissions.yaml          # real policies stay out; mount at runtime instead
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.git/
+.gitignore
+tests/
+.idea/
+.vscode/
+.DS_Store
