@@ -147,6 +147,19 @@ async def list_sources(label: str | None = None) -> list[dict[str, Any]]:
 
 
 @mcp.tool()
+async def crosspoint_matrix() -> str:
+    """Draw an ASCII crosspoint matrix of all senders (columns) vs receivers (rows).
+
+    A cell shows `X` where a receiver is connected to a sender (`o` if subscribed but
+    inactive, `.` if not connected), followed by legends mapping the S1/R1 codes to
+    labels and IDs. This is the router-style overview of every connection at once.
+    """
+    from .matrix import build_and_render
+
+    return await build_and_render(_svc().query)
+
+
+@mcp.tool()
 async def get_resource(kind: str, resource_id: str) -> dict[str, Any]:
     """Get one resource by id. ``kind`` is one of: nodes, devices, sources, flows, senders, receivers, subscriptions."""
     return await _svc().query.get_resource(_kind_guard(kind), resource_id)

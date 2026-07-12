@@ -27,6 +27,7 @@ dev = [
 
 [project.scripts]
 nmos-mcp = "nmos_mcp.server:main"
+nmos-crosspoint = "nmos_mcp.matrix:main"
 
 [build-system]
 requires = ["hatchling"]
