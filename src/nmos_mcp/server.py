@@ -261,14 +261,33 @@ async def stage_sender(sender_id: str, patch: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> None:
+    import os
+
     parser = argparse.ArgumentParser(description="NMOS MCP server (IS-04 query + IS-05 connection).")
     parser.add_argument(
         "--http",
         action="store_true",
         help="Serve over streamable-HTTP instead of stdio.",
     )
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("NMOS_HTTP_HOST", "127.0.0.1"),
+        help="Bind address for --http (default 127.0.0.1; use 0.0.0.0 in containers).",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("NMOS_HTTP_PORT", "8000")),
+        help="Port for --http (default 8000).",
+    )
     args = parser.parse_args()
-    mcp.run(transport="streamable-http" if args.http else "stdio")
+    if args.http:
+        # FastMCP takes the bind host/port from its settings; set them before run.
+        mcp.settings.host = args.host
+        mcp.settings.port = args.port
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":

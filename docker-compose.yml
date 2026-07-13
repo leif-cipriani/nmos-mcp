@@ -1,0 +1,47 @@
+# Run the NMOS MCP server over the streamable-HTTP transport as a long-running
+# service. (The default stdio transport is launched per-session by the MCP client,
+# e.g. Claude Code, so it does not fit Compose — use this for an HTTP endpoint.)
+#
+#   docker compose up -d --build
+#   # connect a client to http://localhost:8000/mcp
+#   docker compose logs -f
+#   docker compose down
+#
+# NMOS_* values are read from your (git-ignored) .env, each with a safe fallback.
+services:
+  nmos-mcp:
+    build: .
+    image: nmos-mcp:latest
+    command: ["--http"]
+    environment:
+      NMOS_REGISTRY_URL: ${NMOS_REGISTRY_URL:-http://registry.example.local}
+      NMOS_PERMISSIONS_MODE: ${NMOS_PERMISSIONS_MODE:-enforce}
+      NMOS_PERMISSIONS_FILE: ${NMOS_PERMISSIONS_FILE:-}
+      # Bind all interfaces inside the container so the published port is reachable.
+      NMOS_HTTP_HOST: "0.0.0.0"
+      NMOS_HTTP_PORT: "8000"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket,sys; s=socket.socket(); s.settimeout(2); sys.exit(0 if s.connect_ex(('127.0.0.1',8000))==0 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # --- Enforcing a permission policy -------------------------------------------
+    # Mount a policy file and point NMOS_PERMISSIONS_FILE at it (set MODE=enforce):
+    # volumes:
+    #   - ./permissions.yaml:/policy.yaml:ro
+    # environment:
+    #   NMOS_PERMISSIONS_FILE: /policy.yaml
+
+    # --- Reaching a media LAN / VPN (Linux) --------------------------------------
+    # If the container can't reach the registry or the Nodes' IS-05 endpoints,
+    # share the host network (and remove the 'ports:' mapping above when you do):
+    # network_mode: host

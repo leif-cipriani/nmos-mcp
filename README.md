@@ -184,12 +184,31 @@ claude mcp add nmos -s user -- \
     nmos-mcp
 ```
 
-**Streamable-HTTP** instead of stdio (long-running, exposes a port):
+**Streamable-HTTP** instead of stdio (long-running, exposes a port). Set
+`NMOS_HTTP_HOST=0.0.0.0` so the server binds all interfaces and the published port is
+reachable (it defaults to `127.0.0.1`):
 
 ```bash
 docker run --rm -p 8000:8000 \
   -e NMOS_REGISTRY_URL=http://registry.example.local \
+  -e NMOS_HTTP_HOST=0.0.0.0 \
   nmos-mcp --http
+# clients connect to http://localhost:8000/mcp
+```
+
+**With Docker Compose** — a long-running HTTP service (binds `0.0.0.0`, publishes
+`8000`, restarts, health-checked); reads `NMOS_*` from your git-ignored `.env`:
+
+```bash
+docker compose up -d --build      # start
+docker compose logs -f            # follow
+docker compose down               # stop
+```
+
+Register the HTTP endpoint with Claude Code:
+
+```bash
+claude mcp add nmos-http -s user --transport http http://localhost:8000/mcp
 ```
 
 **A permission policy** is mounted at runtime rather than built in:
